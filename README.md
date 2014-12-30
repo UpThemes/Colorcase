@@ -6,7 +6,7 @@ A plugin to add custom color schemes to your WordPress theme.
 
 ###Example theme support declaration
 
-```
+```php
 $color_locations = array(
 	// each array is an option
 	// these options are displayed in
