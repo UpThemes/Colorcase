@@ -1,0 +1,23 @@
+.customize-palette-control{
+	margin-right: 5px;
+}
+.customize-palette-control-label{
+	margin-right: 10px;
+}
+label.customize-palette-control-option{
+	display: block;
+	margin-bottom: 10px;
+}
+.palette-blocks{
+	position: relative;
+	top: 5px;
+	display: inline-block;
+	border: solid 1px #333333;
+	border-left: none;
+}
+.palette-color-block{
+	float: left;
+	width: 20px;
+	height: 20px;
+	border-left: solid 1px #333333;
+}

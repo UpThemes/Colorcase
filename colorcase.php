@@ -76,6 +76,8 @@ class Colorcase {
 
 		add_action( 'wp_head',array( &$this, 'add_selectors' ) );
 
+		add_action( 'customize_controls_enqueue_scripts', array( &$this, 'customizer_live_preview' ) );
+
 	}
 
 	/**
@@ -96,7 +98,7 @@ class Colorcase {
 	 * @uses require_if_theme_supports
 	 *
 	 */
-	private function colorcase_theme_support(){
+	private static function colorcase_theme_support(){
 		// does the theme support colorcase?
 		$theme_support = get_theme_support( 'colorcase' );
 
@@ -140,46 +142,107 @@ class Colorcase {
 			return;
 		}
 
-		$wp_customize->add_section(
-			'theme_colors',
-			array(
-				'title' => 'Theme Colors',
-				'description' => 'Your theme supports Colorcase for custom colors.',
-				'priority' => 35,
-			)
-		);
+		// get custom inputs
+		include_once('customizer-inputs.php');
 
 		// remove title color customization
 		$wp_customize->remove_control( 'header_textcolor' );
 
-		foreach( $theme_color_locations as $color_location ){
+		// add theme colors panel
+		$wp_customize->add_panel( 'theme_colors', array(
+			'priority' => 35,
+			'capability' => 'edit_theme_options',
+			'theme_supports' => 'colorcase',
+			'title' => 'Theme Colors',
+			'description' => 'Pick a color palette, or choose custom colors.',
+		) );
 
-			$slug = sanitize_title( $color_location['label'] );
+		// bail if not areas to customize
+		if( !isset( $theme_color_locations['sections'] ) || empty( $theme_color_locations['sections'] ) ){
+			return;
+		}
 
-			if( isset( $color_location['description'] ) ){
-				$color_location['label'] .= '<p class="description"><small>' . $color_location['description'] . '</small></p>';
+		foreach( $theme_color_locations['sections'] as $section_label => $theme_color_section_locations ){
+
+			$section_slug = sanitize_title( $section_label );
+
+			// add theme colors section to customizer
+			$wp_customize->add_section(
+				'theme_colors_' . $section_slug,
+				array(
+					'title' => $section_label,
+					'description' => '',
+					'priority' => 10,
+					'panel' => 'theme_colors',
+				)
+			);
+
+			foreach( $theme_color_section_locations as $color_location_label => $color_location ){
+
+				$slug = sanitize_title( $section_label . '_' . $color_location_label );
+
+				$wp_customize->add_setting(
+					$slug,
+					array(
+						'default' => $color_location['default'],
+						'sanitize_callback' => 'sanitize_hex_color',
+					)
+				);
+
+				if( isset( $color_location['description'] ) ){
+					$color_location_label .= '<p class="description"><small>' . $color_location['description'] . '</small></p>';
+				}
+
+				$wp_customize->add_control(
+					new WP_Customize_Color_Control(
+						$wp_customize,
+						$slug,
+						array(
+							'label' => $color_location_label,
+							'section' => 'theme_colors_' . $section_slug,
+							'settings' => $slug,
+						)
+					)
+				);
+
 			}
 
-			$wp_customize->add_setting(
-				$slug,
+		}
+
+		if( isset( $theme_color_locations['palettes'] ) && !empty( $theme_color_locations['palettes'] ) ){
+
+			$section_label = 'Color Palettes';
+			$section_slug = sanitize_title( $section_label );
+
+			// add theme color palettes section to customizer
+			$wp_customize->add_section(
+				'theme_colors_' . $section_slug,
 				array(
-					'default' => $color_location['default'],
-					'sanitize_callback' => 'sanitize_hex_color',
+					'title' => $section_label,
+					'description' => '',
+					'priority' => 10,
+					'panel' => 'theme_colors',
+				)
+			);
+
+			$wp_customize->add_setting(
+				$section_slug . '_Picker',
+				array(
+					'default' => 'default',
 				)
 			);
 
 			$wp_customize->add_control(
-				new WP_Customize_Color_Control(
+				new Color_Palette_Picker_Customize_Control(
 					$wp_customize,
-					$slug,
+					$section_slug . '_Picker',
 					array(
-						'label' => $color_location['label'],
-						'section' => 'theme_colors',
-						'settings' => $slug,
+						'label' => 'Color Palette',
+						'section' => 'theme_colors_' . $section_slug,
+						// 'settings' => ''
 					)
 				)
 			);
-
 		}
 
 	}
@@ -203,31 +266,33 @@ class Colorcase {
 		// placeholder array for CSS styles
 		$styles = array();
 
-		// loop through each theme color location
-		foreach( $theme_color_locations as $theme_color_location ){
+		foreach( $theme_color_locations['sections'] as $section_label => $theme_color_section_locations ){
 
-			// create a unique slug
-			$slug = sanitize_title( $theme_color_location['label'] );
+			$section_slug = sanitize_title( $section_label );
 
-			// stash customizer color
-			$customizer_color = get_theme_mod( $slug, $theme_color_location['default'] );
+			foreach( $theme_color_section_locations as $color_location_label => $theme_color_location ){
 
-			// skip color if empty (none selected)
-			if( empty( $customizer_color ) ){
-				continue;
-			}
+				// create unique slug
+				$slug = sanitize_title( $section_label . '_' . $color_location_label );
 
-			// if customizer color isn't te default add it to styles
-			if( $customizer_color != $theme_color_location['default'] ){
+				// stash customizer color
+				$customizer_color = get_theme_mod( $slug, $theme_color_location['default'] );
 
-				if( !isset( $theme_color_location['is_text'] ) ){
-					$theme_color_location['is_text'] = false;
+				// skip color if empty (none selected)
+				if( empty( $customizer_color ) ){
+					continue;
 				}
 
-				$css_declaration = ( $theme_color_location['is_text'] ) ? 'color' : 'background-color';
+				$selector = $theme_color_location['selector'];
+				$attribute = $theme_color_location['attribute'];
+
+				// if customizer color isn't the default add it to styles
+			if( $customizer_color != $theme_color_location['default'] ){
 
 				// add the styles
-				$styles[] = $theme_color_location['selector'] . "{ $css_declaration: $customizer_color; }";
+				$styles[] = $selector . "{ $attribute: $customizer_color; }";
+
+			}
 
 			}
 
@@ -240,6 +305,78 @@ class Colorcase {
 			echo '<style type="text/css">' . "\n\t" . implode( "\n\t", $styles ) . "\n" . '</style>' . "\n" . '<!--==-- End Theme Color Declarations --==-->' . "\n";
 
 		}
+	}
+
+	/**
+	 * Returns color palettes
+	 *
+	 */
+	public static function colorcase_get_palettes(){
+		$theme_color_locations = Colorcase::colorcase_theme_support();
+
+		// bail if no theme support
+		if( $theme_color_locations == false ){
+			return false;
+		}
+
+		// bail if no color palettes
+		if( !isset( $theme_color_locations['palettes'] ) || empty( $theme_color_locations['palettes'] ) ){
+			return false;
+		}
+
+		return $theme_color_locations['palettes'];
+	}
+
+	public function customizer_live_preview(){
+
+		$color_palette_sections = self::colorcase_get_palettes();
+
+		// bail if no color palettes
+		if( $color_palette_sections == false ){
+			return;
+		}
+
+		$color_palettes = array();
+
+		foreach( $color_palette_sections as $color_palette_label => $color_palette_sections ){
+
+			$color_palette_slug = sanitize_title( $color_palette_label );
+
+			foreach( $color_palette_sections as $section_label => $sections ){
+
+				$color_palette_section_slug = sanitize_title( $section_label );
+
+				foreach( $sections as $section => $palette_color ){
+
+					$color_palette_input_slug = $color_palette_section_slug . '_' . sanitize_title( $section );
+
+					$color_palettes[$color_palette_slug][$color_palette_input_slug] = $palette_color;
+
+				}
+
+			}
+
+		}
+
+		// bail if no color palettes
+		if( empty( $color_palettes ) ){
+			return;
+		}
+
+		// enqueue CSS file to customizer
+		wp_enqueue_style( 'colorcase-customizer',  plugins_url( 'css/colorcase.css', __FILE__ ) );
+
+		// enqueue JS file to customizer
+		wp_enqueue_script( 'colorcase-customizer',  plugins_url( 'js/colorcase.js', __FILE__ ), array( 'jquery','customize-preview', 'wp-color-picker' ), false, true );
+
+		// set some variables
+		$colorcaseWordPressVars = array(
+			'colorPalettes' => $color_palettes,
+		);
+
+		// and localize them for the JS
+		wp_localize_script( 'colorcase-customizer',  'colorcaseWordPressVars', $colorcaseWordPressVars );
+
 	}
 
 }
