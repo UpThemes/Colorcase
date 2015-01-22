@@ -162,6 +162,42 @@ class Colorcase {
 			return;
 		}
 
+		if( isset( $theme_color_locations['palettes'] ) && !empty( $theme_color_locations['palettes'] ) ){
+
+			$section_label = 'Color Palettes';
+			$section_slug = sanitize_title( $section_label );
+
+			// add theme color palettes section to customizer
+			$wp_customize->add_section(
+				'theme_colors_' . $section_slug,
+				array(
+					'title' => $section_label,
+					'description' => '',
+					'priority' => 10,
+					'panel' => 'theme_colors',
+				)
+			);
+
+			$wp_customize->add_setting(
+				$section_slug . '_Picker',
+				array(
+					'default' => 'default',
+				)
+			);
+
+			$wp_customize->add_control(
+				new Color_Palette_Picker_Customize_Control(
+					$wp_customize,
+					$section_slug . '_Picker',
+					array(
+						'label' => 'Color Palette',
+						'section' => 'theme_colors_' . $section_slug,
+						// 'settings' => ''
+					)
+				)
+			);
+		}
+
 		foreach( $theme_color_locations['sections'] as $section_label => $theme_color_section_locations ){
 
 			$section_slug = sanitize_title( $section_label );
@@ -207,42 +243,6 @@ class Colorcase {
 
 			}
 
-		}
-
-		if( isset( $theme_color_locations['palettes'] ) && !empty( $theme_color_locations['palettes'] ) ){
-
-			$section_label = 'Color Palettes';
-			$section_slug = sanitize_title( $section_label );
-
-			// add theme color palettes section to customizer
-			$wp_customize->add_section(
-				'theme_colors_' . $section_slug,
-				array(
-					'title' => $section_label,
-					'description' => '',
-					'priority' => 10,
-					'panel' => 'theme_colors',
-				)
-			);
-
-			$wp_customize->add_setting(
-				$section_slug . '_Picker',
-				array(
-					'default' => 'default',
-				)
-			);
-
-			$wp_customize->add_control(
-				new Color_Palette_Picker_Customize_Control(
-					$wp_customize,
-					$section_slug . '_Picker',
-					array(
-						'label' => 'Color Palette',
-						'section' => 'theme_colors_' . $section_slug,
-						// 'settings' => ''
-					)
-				)
-			);
 		}
 
 	}
