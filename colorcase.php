@@ -76,7 +76,7 @@ class Colorcase {
 
 		add_action( 'wp_head',array( &$this, 'add_selectors' ) );
 
-		add_action( 'customize_controls_enqueue_scripts', array( &$this, 'customizer_live_preview' ) );
+		add_action( 'customize_preview_init', array( &$this, 'customizer_live_preview' ) );
 
 	}
 
